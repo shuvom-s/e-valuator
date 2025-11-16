@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# PyPI project name (with hyphen)
+name = "e-valuator"
+
+# Import name stays "evaluator"
+version = "0.1.0"
+description = "Sequential evaluator for LLM trajectories"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+authors = [
+  { name = "Shuvom Sadhuka" }
+]
+
+dependencies = [
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "scipy",
+  "tqdm"
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.urls]
+Homepage = "https://github.com/shuvom-s/e-valuator"
+Repository = "https://github.com/shuvom-s/e-valuator"
