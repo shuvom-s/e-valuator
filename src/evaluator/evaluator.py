@@ -184,6 +184,9 @@ class EValuator:
                 ##   (p0_s / p1_s) * (p1 / p0)
                 ratio = (p0_s / p1_s) * (p1 / p0)
                 last_ratio[pid] = ratio
+
+            ## if no model exists for this step, just keep copying the last ratio.
+            ## false alarm guarantee still holds!
             else:
                 ratio = last_ratio[pid]
 
