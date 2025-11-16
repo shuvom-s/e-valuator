@@ -65,6 +65,42 @@ def test_insufficient_data_step1_raises():
     with pytest.raises(AssertionError):
         ev.fit(calib_df)
 
+def test_e_vals_carry_forward_when_no_model_for_step():
+    """
+    If there is no trained model for a given step, the e-value for that step
+    should equal the last available e-value for that problem.
+
+    Here we train only on step=1, then apply to a problem that has steps 1 and 2.
+    There is no model for step=2, so step=2 must copy the step=1 value.
+    """
+    ## Calibration set: only step 1 appears, with enough data to train
+    calib_df = pd.DataFrame({
+        "uq_problem_idx": [f"p{i}" for i in range(10)],
+        "num_steps": [1] * 10,
+        "solved": [0] * 5 + [1] * 5,
+        "judge_probability_series": [[0.2]] * 5 + [[0.8]] * 5,
+    })
+
+    ev = EValuator(mt_variant="anytime", alphas=[0.05])
+    ev.fit(calib_df)
+
+    ## Test set: a single problem with steps 1 and 2
+    test_df = pd.DataFrame({
+        "uq_problem_idx": ["p_test", "p_test"],
+        "num_steps": [1, 2],
+        "solved": [0, 0],
+        ## Values here don't matter for step=2 since no model exists for step=2
+        "judge_probability_series": [[0.3], [0.4]],
+    })
+
+    out = ev.apply(test_df, compute_rejects=False)
+    vals = out["anytime_e_val"].values
+
+    ## Step 1 should produce some positive e-value
+    assert vals[0] > 0
+
+    ## Step 2 has no model; it should copy the last ratio from step 1
+    assert vals[1] == pytest.approx(vals[0])
 
 @pytest.mark.slow
 @pytest.mark.parametrize("mt_variant", ["anytime", "split", "both"])
