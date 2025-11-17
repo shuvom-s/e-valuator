@@ -9,7 +9,7 @@ pip install e-valuator
 ```
 
 ## Quick start
-Once installed, you can boot up e-valuator with `from evaluator import EValuator`. We provide two demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_cleaned_w_scores.csv`) and `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_cleaned_w_scores.csv`).
+Once installed, you can boot up e-valuator with `import evaluator as e_val`. We provide two demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_cleaned_w_scores.csv`) and `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_cleaned_w_scores.csv`).
 
 These notebooks provide examples of the input data format required and evaluation pipeline.
 
