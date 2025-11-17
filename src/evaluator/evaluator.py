@@ -70,6 +70,7 @@ class EValuator:
         ## For "both": {"anytime": {alpha: thr}, "split": {alpha: thr}}
         self.thresholds = {}
 
+    ## TODO: add a way to specify the model hyperparameters, also add other model families
     def _new_model(self):
         if self.model_type == "logistic":
             return LogisticRegression(max_iter=200)
@@ -160,6 +161,7 @@ class EValuator:
             step = int(row[self.step_col])
 
             if pid not in last_ratio:
+                ## initialize M_0 = 1
                 last_ratio[pid] = 1.0
 
             if step in models:
