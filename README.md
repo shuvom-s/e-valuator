@@ -9,7 +9,38 @@ pip install e-valuator
 ```
 
 ## Quick start
-Once installed, you can boot up e-valuator with `import evaluator as e_val`. We provide two demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_cleaned_w_scores.csv`) and `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_cleaned_w_scores.csv`).
+We provide two demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_w_scores_compressed.csv.gz`) and `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_w_scores_compressed.csv.gz`). These notebooks provide examples of the input data format required and evaluation pipeline. In general, the workflow for e-valuator consists of three parts:
 
-These notebooks provide examples of the input data format required and evaluation pipeline.
+1. Collect agent trajectories and verifier scores. We provide an example collection script in `demos/collect_verifier_scores/collect_math_example.py`. The trajectories and scores used to calibrate e-valuator must be stored in a csv file (or similar) with (at least) four columns: (1) uq_problem_idx, a unique identifier for each trajectory, (2) step_idx (or num_steps), indicating the step count of the trajectory thus far, (3) judge_probability, indicating the verifier score for that particular step (could also be real-valued, doesn't have to be in 0-1), and (4) solved, a binary indicator column indicating whether the agent successfully solved the problem or not. The columns need not use exactly these names, but if you use a different naming system, you'll need to mark them appropriately upon initialization of e-valuator.
+
+To start e-valuator:
+
+```python
+import evaluator as e_val
+ev = e_val.EValuator(
+    model_type="logistic",   
+    mt_variant="both",    ## "split" is finite time/empirical version of e-valuator. "anytime" is the anytime-valid version. "both" adds both the finite-time and empirical versions as columns to the test set.
+    alphas=[0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5], ## by default, alphas = [0.05] unless otherwise specified, as we do here
+    # delta=0.1, ## only used for split version, confidence level in false alarm guarantee. default is 0.1 (meaning 90% confidence in false alarm guarantee)
+    delta=0.05,
+)
+```
+
+You now have an e-valuator object that will fit the density ratio estimate using logistic regression. It will find valid thresholds for both the anytime-valid variant and empirical versions of e-valuator, using the list of $\alpha$s provided. $\delta$ indicates the confidence in the false alarm guarantee. Specifically, $\delta=0.05$ indicates 95\% confidence in the guarantee (see Proposition 3 of the paper for details).
+
+You'll then need to fit e-valuator on a calibration dataframe that has the columns we described above:
+
+```python
+ev.fit(cal_df)
+```
+
+To then apply it at test-time, you can run:
+
+```python
+test_df_with_evals = ev.apply(test_df)
+```
+
+
+## Citation
+If you use this code, please cite our work.
 
