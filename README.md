@@ -44,6 +44,25 @@ To then apply it at test-time, you can run:
 test_df_with_evals = ev.apply(test_df)
 ```
 
+## Online Evaluation/Monitoring of Agents
+_E-valuator_ assumes black-box access to the verifier/agent system. As such, we do note provide code to directly intervene in any particular agent/verifier system. To deploy _e-valuator_ online, we recommend updating the test_df after each agent action/verifier score:
+
+```python
+## assume ev.fit(cal_df) has been called before
+x = 0
+while agent_not_done:
+    ## pseudocode to get a verifier score and add to test df
+    verifier_score = verify(partial_traj_step_x)
+    test_df.loc[len(test_df)] = ['problem_new', verifier_score1, x]
+    test_df_scored = ev.apply(test_df)
+
+    if test_df_scored['anytime_eval'] > 1/alpha:
+        terminate
+    else:
+        x += 1
+```
+This is inefficient, and if there's interest, we can add better support for online evaluation/monitoring of agents with _e-valuator_.
+
 
 ## Citation
 If you use this code, please cite our work.
