@@ -30,7 +30,7 @@ ev = e_val.EValuator(
 )
 ```
 
-You now have an e-valuator object that will fit the density ratio estimate using logistic regression. It will find valid thresholds for both the anytime-valid variant and empirical versions of e-valuator, using the list of $\alpha$s provided. $\delta$ indicates the confidence in the false alarm guarantee. Specifically, $\delta=0.05$ indicates 95\% confidence in the guarantee (see Proposition 3 of the paper for details).
+You now have an e-valuator object that will fit the density ratio estimate using logistic regression. It will find valid thresholds for both the anytime-valid variant and empirical versions of e-valuator, using the list of $\alpha$ values provided. $\delta$ indicates the confidence in the false alarm guarantee. Specifically, $\delta=0.05$ indicates 95\% confidence in the guarantee (see Proposition 3 of the paper for details).
 
 You'll then need to fit e-valuator on a calibration dataframe that has the columns we described above:
 
