@@ -6,3 +6,10 @@ To use this code, you can run the following command:
 ```bash
 python collect_math.py --api_key_file [YOUR_ANTHROPIC_API_KEY_FILE] --model [YOUR_MODEL_CHOICE] --save_path [PATH_TO_SAVE_SCORES]
 ```
+
+## Chess
+We also provide an example script for collecting and scoring chess games. This script requires a local copy of Stockfish, which you can download [here](https://stockfishchess.org/). To score and collect the trajectories, run:
+
+```bash
+python collect_chess_example.py  [PATH_TO_SAVE_SCORES]
+```
