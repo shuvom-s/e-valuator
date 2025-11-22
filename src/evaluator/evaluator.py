@@ -70,6 +70,9 @@ class EValuator:
         ## For "both": {"anytime": {alpha: thr}, "split": {alpha: thr}}
         self.thresholds = {}
 
+        self.base_probs_anytime = None
+        self.base_probs_split = None
+
     ## TODO: add a way to specify the model hyperparameters, also add other model families
     def _new_model(self):
         if self.model_type == "logistic":
@@ -122,15 +125,26 @@ class EValuator:
             model = self._new_model()
             model.fit(Xs, y)
 
-            p1 = float(np.mean(y))
-            p0 = 1.0 - p1
+            if step == 1:
+                p1 = float(np.mean(y))
+                p0 = 1.0 - p1
+                if which == "anytime":
+                    self.base_probs_anytime = {"p0": p0, "p1": p1}
+                elif which == "split":
+                    self.base_probs_split = {"p0": p0, "p1": p1}
 
             if which == "anytime":
+                base = self.base_probs_anytime
+                p0 = base["p0"]
+                p1 = base["p1"]
                 self.step_models_anytime[step] = model
                 self.step_scalers_anytime[step] = scaler
                 self.step_base_probs_anytime[step] = {"p0": p0, "p1": p1}
                 self.max_trained_step_anytime = max(self.max_trained_step_anytime, step)
             elif which == "split":
+                base = self.base_probs_split
+                p0 = base["p0"]
+                p1 = base["p1"]
                 self.step_models_split[step] = model
                 self.step_scalers_split[step] = scaler
                 self.step_base_probs_split[step] = {"p0": p0, "p1": p1}
