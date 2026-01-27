@@ -1,3 +1,5 @@
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/e-valuator?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/e-valuator)
+
 # E-valuator
 Code for paper _E-valuator: Reliable Agent Verifiers with Sequential Hypothesis Testing_. We build a sequential evaluator that can convert any black-box verifier/agent system into one with statistical guarantees. At deployment time, our system can flag and terminate agent trajectories that are likely to be unsuccessful without access to anything but a verifier's (black-box) scores.
 
