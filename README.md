@@ -5,11 +5,11 @@ Code for paper _E-valuator: Reliable Agent Verifiers with Sequential Hypothesis 
 To start, please install our package:
 
 ```bash
-pip install e-valuator
+pip install -r requirements.txt
 ```
 
 ## Quick start
-We provide two demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_w_scores_compressed.csv.gz`) and `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_w_scores_compressed.csv.gz`). These notebooks provide examples of the input data format required and evaluation pipeline. In general, the workflow for e-valuator consists of three parts:
+We provide three demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_w_scores_compressed.csv.gz`), `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_w_scores_compressed.csv.gz`), and `demos/notebooks/chess_example.ipynb` (corresponding dataset in `data/chessgames_w_scores_compressed.csv.gz`). These notebooks provide examples of the input data format required and evaluation pipeline. In general, the workflow for e-valuator consists of three parts:
 
 1. **Collect agent trajectories and verifier scores**. We provide an example collection script in `demos/collect_verifier_scores/collect_math_example.py`. The trajectories and scores used to calibrate e-valuator must be stored in a csv file (or similar) with (at least) four columns: (1) uq_problem_idx, a unique identifier for each trajectory, (2) step_idx (or num_steps), indicating the step count of the trajectory thus far, (3) judge_probability, indicating the verifier score for that particular step (could also be real-valued, doesn't have to be in 0-1), and (4) solved, a binary indicator column indicating whether the agent successfully solved the problem or not. The columns need not use exactly these names, but if you use a different naming system, you'll need to mark them appropriately upon initialization of e-valuator.
 
