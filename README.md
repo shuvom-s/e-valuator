@@ -14,7 +14,7 @@ Code for paper _E-valuator: Reliable Agent Verifiers with Sequential Hypothesis 
 To start, please install our package:
 
 ```bash
-pip install e-valuator
+pip install -r requirements.txt
 ```
 
 ## Quick start
