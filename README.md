@@ -8,7 +8,9 @@
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shuvom-s/e-valuator/blob/main/demos/notebooks/math_example_tokens.ipynb)
 
 
-Code for paper _E-valuator: Reliable Agent Verifiers with Sequential Hypothesis Testing_. We build a sequential evaluator that can convert any black-box verifier/agent system into one with statistical guarantees. At deployment time, our system can flag and terminate agent trajectories that are likely to be unsuccessful without access to anything but a verifier's (black-box) scores.
+Code for paper [_E-valuator: Reliable Agent Verifiers with Sequential Hypothesis Testing_](https://arxiv.org/abs/2512.03109). We build a sequential evaluator that can convert any black-box verifier/agent system into one with statistical guarantees. At deployment time, our system can flag and terminate agent trajectories that are likely to be unsuccessful without access to anything but a verifier's (black-box) scores.
+
+![E-valuator Explainer Figure](data/figs/fig1_evaluator.png)
 
 ## Install
 To start, please install our package:
@@ -77,4 +79,7 @@ This is inefficient, and if there's interest, we can add better support for onli
 
 ## Citation
 If you use this code, please cite our work.
+
+## Contact
+Feel free to contact shuvom@csail.mit.edu with any questions.
 
