@@ -19,12 +19,27 @@ To start, please install our package:
 pip install e-valuator
 ```
 
+## Data
+E-valuator requires a dataframe with columns at least four columns: (1) uq_problem_idx, a unique identifier for each trajectory, (2) step_idx (or num_steps), indicating the step count of the trajectory thus far, (3) judge_probability, indicating the verifier score for that particular step (could also be real-valued, doesn't have to be in 0-1), and (4) solved, a binary indicator column indicating whether the agent successfully solved the problem or not. Details on the data are provided in quick start. Here's an example of a minimal dataframe for e-valuator:
+
+| uq_problem_idx  | step_idx | judge_probability | solved |
+| :---            | :---:    | :---:             | :---:  |
+| `algebra_1`     | 1        | 0.995             | 1      |
+| `algebra_1`     | 2        | 0.996             | 1      |
+| `algebra_1`     | 3        | 0.969             | 1      |
+| ...             | ...      | ...               | ...    |
+| `precalculus_5` | 5        | 0.538             | 0      |
+| `precalculus_5` | 6        | 0.544             | 0      |
+| `precalculus_5` | 7        | 0.465             | 0      |
+
+You are welcome to add other columns (e.g., metadata about the problem, token counts, etc.) but these additional columns will not be used in our package.
+
 ## Quick start
 You can quickly try out our demo code in Colab (click on the badge at the top of this README).
 
 We provide three demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_w_scores_compressed.csv.gz`), `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_w_scores_compressed.csv.gz`), and `demos/notebooks/chess_example.ipynb` (corresponding dataset in `data/chessgames_w_scores_compressed.csv.gz`). These notebooks provide examples of the input data format required and evaluation pipeline. In general, the workflow for e-valuator consists of three parts:
 
-1. **Collect agent trajectories and verifier scores**. We provide an example collection script in `demos/collect_verifier_scores/collect_math_example.py`. The trajectories and scores used to calibrate e-valuator must be stored in a csv file (or similar) with (at least) four columns: (1) uq_problem_idx, a unique identifier for each trajectory, (2) step_idx (or num_steps), indicating the step count of the trajectory thus far, (3) judge_probability, indicating the verifier score for that particular step (could also be real-valued, doesn't have to be in 0-1), and (4) solved, a binary indicator column indicating whether the agent successfully solved the problem or not. The columns need not use exactly these names, but if you use a different naming system, you'll need to mark them appropriately upon initialization of e-valuator.
+1. **Collect agent trajectories and verifier scores**. We provide an example collection script in `demos/collect_verifier_scores/collect_math_example.py`. As noted in the data section, the trajectories and scores used to calibrate e-valuator must be stored in a csv file (or similar) with (at least) four columns: (1) uq_problem_idx, (2) step_idx, (3) judge_probability, and (4) solved. The columns need not use exactly these names, but if you use a different naming system, you'll need to mark them appropriately upon initialization of e-valuator.
 
 2. **Fit density ratio estimates on calibration set**. Using the calibration set collected in step (1), we'll fit a stepwise density ratio estimator with a binary classifier.
 
@@ -78,7 +93,16 @@ This is inefficient, and if there's interest, we can add better support for onli
 
 
 ## Citation
-If you use this code, please cite our work.
+If you use this code, please cite our work:
+
+```
+@article{sadhuka2025valuator,
+  title={E-valuator: Reliable Agent Verifiers with Sequential Hypothesis Testing},
+  author={Sadhuka, Shuvom and Prinster, Drew and Fannjiang, Clara and Scalia, Gabriele and Regev, Aviv and Wang, Hanchen},
+  journal={arXiv preprint arXiv:2512.03109},
+  year={2025}
+}
+```
 
 ## Contact
 Feel free to contact shuvom@csail.mit.edu with any questions.
