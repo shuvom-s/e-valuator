@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import binom
 
@@ -11,7 +11,7 @@ class EValuator:
     Stepwise evaluator using density ratio estimation + e-values.
 
     Args:
-        model_type: "logistic" or "random_forest"
+        model_type: "logistic" (default) or "svm"
         mt_variant: "anytime", "split", or "both"
         alphas: list of alpha levels
         delta: tolerance-bound failure probability for split mode (1 - confidence)
@@ -77,8 +77,8 @@ class EValuator:
     def _new_model(self):
         if self.model_type == "logistic":
             return LogisticRegression(max_iter=200)
-        elif self.model_type == "random_forest":
-            return RandomForestClassifier(n_estimators=200)
+        elif self.model_type == "svm":
+            return SVC(probability=True, kernel="rbf")
         raise ValueError(f"Unknown model type: {self.model_type}")
 
     def _upper_tolerance_bound(self, values, alpha, delta):
@@ -97,7 +97,7 @@ class EValuator:
         for k in range(1, n + 1):
             if binom.sf(k - 1, n, p) <= sig:
                 return float(Xs[k - 1])
-        return float(Xs[-1])
+        return float('inf')
 
 
     def _fit_step_models(self, df: pd.DataFrame, which: str):
