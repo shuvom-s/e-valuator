@@ -60,7 +60,7 @@ def test_insufficient_data_step1_raises():
         "judge_probability_series": [[0.5]] * 4,
     })
 
-    ev = EValuator(mt_variant="anytime")
+    ev = EValuator(mt_variant="Ville")
 
     with pytest.raises(AssertionError):
         ev.fit(calib_df)
@@ -81,7 +81,7 @@ def test_e_vals_carry_forward_when_no_model_for_step():
         "judge_probability_series": [[0.2]] * 5 + [[0.8]] * 5,
     })
 
-    ev = EValuator(mt_variant="anytime", alphas=[0.05])
+    ev = EValuator(mt_variant="Ville", alphas=[0.05])
     ev.fit(calib_df)
 
     ## Test set: a single problem with steps 1 and 2
@@ -94,7 +94,7 @@ def test_e_vals_carry_forward_when_no_model_for_step():
     })
 
     out = ev.apply(test_df, compute_rejects=False)
-    vals = out["anytime_e_val"].values
+    vals = out["Ville_e_val"].values
 
     ## Step 1 should produce some positive e-value
     assert vals[0] > 0
@@ -103,7 +103,7 @@ def test_e_vals_carry_forward_when_no_model_for_step():
     assert vals[1] == pytest.approx(vals[0])
 
 @pytest.mark.slow
-@pytest.mark.parametrize("mt_variant", ["anytime", "split", "both"])
+@pytest.mark.parametrize("mt_variant", ["Ville", "PAC", "RandVille"])
 def test_evaluator_workflow_from_csv(mt_variant):
     data_path = ROOT / "data" / "hotpotqa_cleaned_w_scores.csv"
     if not data_path.exists():
@@ -147,33 +147,25 @@ def test_evaluator_workflow_from_csv(mt_variant):
     ev.fit(cal_df)
 
     # Basic sanity on thresholds
-    if mt_variant == "anytime":
+    if mt_variant in {"Ville", "RandVille"}:
         assert isinstance(ev.thresholds, dict)
         assert set(ev.thresholds.keys()) == set(ev.alphas)
         for a, thr in ev.thresholds.items():
             assert thr == pytest.approx(1.0 / a)
-    elif mt_variant == "split":
+    else:  # PAC
         assert isinstance(ev.thresholds, dict)
         assert set(ev.thresholds.keys()) == set(ev.alphas)
-        # All thresholds should be positive
         for thr in ev.thresholds.values():
             assert thr >= 0.0
-    else:  # "both"
-        assert isinstance(ev.thresholds, dict)
-        assert set(ev.thresholds.keys()) == {"anytime", "split"}
-        assert set(ev.thresholds["anytime"].keys()) == set(ev.alphas)
-        assert set(ev.thresholds["split"].keys()) == set(ev.alphas)
 
     # Apply to test set
     test_with_scores = ev.apply(test_df)
 
     ## Check columns by variant
-    if mt_variant in {"anytime", "both"}:
-        assert "anytime_e_val" in test_with_scores.columns
-        ## e-values should be positive
-        assert (test_with_scores["anytime_e_val"] > 0).all()
-
-    if mt_variant in {"split", "both"}:
-        assert "split_e_val" in test_with_scores.columns
-        assert (test_with_scores["split_e_val"] > 0).all()
+    if mt_variant in {"Ville", "RandVille"}:
+        assert "Ville_e_val" in test_with_scores.columns
+        assert (test_with_scores["Ville_e_val"] > 0).all()
+    else:
+        assert "PAC_e_val" in test_with_scores.columns
+        assert (test_with_scores["PAC_e_val"] > 0).all()
 

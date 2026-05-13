@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -12,19 +13,23 @@ class EValuator:
 
     Args:
         model_type: "logistic" (default) or "svm"
-        mt_variant: "anytime", "split", or "both"
-        alphas: list of alpha levels
-        delta: tolerance-bound failure probability for split mode (1 - confidence)
+        mt_variant: "PAC" (default, recommended — the method in the paper),
+            "Ville", or "RandVille".
+            "PAC" uses a PAC tolerance-bound threshold calibrated on held-out data.
+            "Ville" uses Ville's inequality with threshold 1/alpha.
+            "RandVille" uses the randomized Ville inequality.
+        alphas: list of alpha levels (default [0.05])
+        delta: failure probability for the PAC threshold (default 0.1)
         problem_col: column name for problem identifier (default "uq_problem_idx")
         step_col: column name for step index (default "num_steps")
-        split_fraction: fraction of problems used for log-training in split mode
-        random_state: RNG seed for the internal log/cal split
+        split_fraction: fraction of problems used for log-training in PAC mode
+        random_state: RNG seed for the internal log/cal split and RandVille draws
     """
 
     def __init__(
         self,
         model_type: str = "logistic",
-        mt_variant: str = "split",
+        mt_variant: str = "PAC",
         alphas=None,
         delta: float = 0.1,
         problem_col: str = "uq_problem_idx",
@@ -50,24 +55,23 @@ class EValuator:
 
         assert 0 < self.delta < 1, f"Delta must be in (0,1). Got {self.delta}"
         assert 0 < self.split_fraction < 1, f"split_fraction must be in (0,1). Got {self.split_fraction}"
-        assert self.mt_variant in {"anytime", "split", "both"}, (
-            "mt_variant must be 'anytime', 'split', or 'both'. "
+        assert self.mt_variant in {"Ville", "PAC", "RandVille"}, (
+            "mt_variant must be 'Ville', 'PAC', or 'RandVille'. "
             f"Got {self.mt_variant}"
         )
 
-        ## Model families for anytime and split
+        ## Model families for Ville/RandVille (trained on full calib)
         self.step_models_anytime = {}
         self.step_scalers_anytime = {}
         self.step_base_probs_anytime = {}
         self.max_trained_step_anytime = 0
 
+        ## Model families for PAC (trained on log half of calib)
         self.step_models_split = {}
         self.step_scalers_split = {}
         self.step_base_probs_split = {}
         self.max_trained_step_split = 0
 
-        ## For "anytime" or "split": dict[alpha] -> threshold
-        ## For "both": {"anytime": {alpha: thr}, "split": {alpha: thr}}
         self.thresholds = {}
 
         self.base_probs_anytime = None
@@ -98,7 +102,6 @@ class EValuator:
             if binom.sf(k - 1, n, p) <= sig:
                 return float(Xs[k - 1])
         return float('inf')
-
 
     def _fit_step_models(self, df: pd.DataFrame, which: str):
         """
@@ -210,31 +213,42 @@ class EValuator:
 
         return e_vals
 
-    def _compute_split_thresholds(self, calib_df: pd.DataFrame) -> dict:
+    def _compute_pac_thresholds(self, calib_df: pd.DataFrame) -> dict:
         """
-        Use the held-out calibration split to get tolerance-bound thresholds
-        for split_e_val.
+        Use the held-out calibration split to get PAC tolerance-bound thresholds.
         """
         tmp = calib_df.copy()
-        tmp["split_e_val"] = self._compute_e_vals_for_variant(tmp, which="split")
+        tmp["PAC_e_val"] = self._compute_e_vals_for_variant(tmp, which="split")
         solved = tmp[tmp["solved"] == 1]
 
         group_max = []
         for _, g in solved.groupby(self.problem_col):
-            vals = pd.to_numeric(g["split_e_val"], errors="coerce").dropna()
+            vals = pd.to_numeric(g["PAC_e_val"], errors="coerce").dropna()
             if len(vals) > 0:
                 group_max.append(vals.max())
 
+        n = len(group_max)
         thresholds = {}
         for a in self.alphas:
-            if len(group_max) == 0:
+            if n == 0:
                 thresholds[a] = 0.0
             else:
-                thresholds[a] = self._upper_tolerance_bound(
-                    group_max, alpha=a, delta=self.delta
-                )
+                thr = self._upper_tolerance_bound(group_max, alpha=a, delta=self.delta)
+                if np.isinf(thr):
+                    min_n = int(np.ceil(np.log(self.delta) / np.log(1.0 - a)))
+                    warnings.warn(
+                        f"The calibration set has only n={n} successful trajectories, which is "
+                        f"too small for alpha={a}, delta={self.delta} with the PAC threshold. "
+                        f"The threshold is set to inf (no rejections; false alarm rate controlled "
+                        f"but zero power). To obtain a finite threshold, ensure n >= "
+                        f"ceil(log(delta) / log(1 - alpha)) = {min_n}, or increase the "
+                        f"calibration set size. "
+                        f"See https://arxiv.org/pdf/2512.03109 Appendix 8.1.2 for details.",
+                        UserWarning,
+                        stacklevel=3,
+                    )
+                thresholds[a] = thr
         return thresholds
-
 
     def fit(self, calib_df: pd.DataFrame):
         """
@@ -244,17 +258,17 @@ class EValuator:
             - self.step_col
             - "solved"
             - "judge_probability_series"
-            - self.problem_col (for split/both threshold computation)
+            - self.problem_col (for PAC threshold computation)
         """
         calib_df = calib_df.copy()
 
-        ## Anytime-only: train on full calib, Ville thresholds 1/alpha
-        if self.mt_variant == "anytime":
+        if self.mt_variant in {"Ville", "RandVille"}:
+            ## Train on full calib; Ville/RandVille threshold is 1/alpha
             self._fit_step_models(calib_df, which="anytime")
             self.thresholds = {a: 1.0 / a for a in self.alphas}
             return
 
-        ## For split version, first build a log/cal split by problem
+        ## PAC (recommended): split calib into log half (model training) and cal half (threshold)
         unique_ids = calib_df[self.problem_col].unique()
         rng = np.random.default_rng(self.random_state)
         n_log = max(1, int(len(unique_ids) * self.split_fraction))
@@ -264,25 +278,8 @@ class EValuator:
         log_df = calib_df[calib_df[self.problem_col].isin(log_ids)].reset_index(drop=True)
         cal_df = calib_df[calib_df[self.problem_col].isin(cal_ids)].reset_index(drop=True)
 
-        if self.mt_variant == "split":
-            ## Split-only: train on one half, thresholds from held-out other half
-            self._fit_step_models(log_df, which="split")
-            self.thresholds = self._compute_split_thresholds(cal_df)
-            return
-
-        ## mt_variant == "both"
-        ## Anytime side: train on full calib set, thresholds 1/alpha
-        self._fit_step_models(calib_df, which="anytime")
-        anytime_thresholds = {a: 1.0 / a for a in self.alphas}
-
-        ## Split side: train on one half, thresholds from held-out other half
         self._fit_step_models(log_df, which="split")
-        split_thresholds = self._compute_split_thresholds(cal_df)
-
-        self.thresholds = {
-            "anytime": anytime_thresholds,
-            "split": split_thresholds,
-        }
+        self.thresholds = self._compute_pac_thresholds(cal_df)
 
     def apply(self, df: pd.DataFrame, compute_rejects: bool = True) -> pd.DataFrame:
         """
@@ -294,54 +291,47 @@ class EValuator:
             - "judge_probability_series"
 
         Returns a copy of df with:
-            - "anytime_e_val" if mt_variant in {"anytime", "both"}
-            - "split_e_val"   if mt_variant in {"split", "both"}
+            - "Ville_e_val"  if mt_variant in {"Ville", "RandVille"}
+            - "PAC_e_val"    if mt_variant == "PAC"
             - reject columns (if compute_rejects=True):
-                * "reject_anytime_alpha_{a}" for anytime/both
-                * "reject_split_alpha_{a}"   for split/both
+                * "reject_Ville_alpha_{a}"     for Ville
+                * "reject_PAC_alpha_{a}"       for PAC
+                * "reject_RandVille_alpha_{a}" for RandVille
         """
         df = df.copy()
 
-        has_anytime = self.mt_variant in {"anytime", "both"}
-        has_split = self.mt_variant in {"split", "both"}
-
-        if has_anytime:
-            df["anytime_e_val"] = self._compute_e_vals_for_variant(df, which="anytime")
-
-        if has_split:
-            df["split_e_val"] = self._compute_e_vals_for_variant(df, which="split")
+        if self.mt_variant in {"Ville", "RandVille"}:
+            df["Ville_e_val"] = self._compute_e_vals_for_variant(df, which="anytime")
+        else:
+            df["PAC_e_val"] = self._compute_e_vals_for_variant(df, which="split")
 
         if not compute_rejects:
             return df
 
-        if self.mt_variant == "anytime":
+        if self.mt_variant == "Ville":
             for a in self.alphas:
                 thr = self.thresholds[a]
                 base = str(a).replace(".", "_")
-                col = f"reject_anytime_alpha_{base}"
-                df[col] = df["anytime_e_val"] > thr
+                df[f"reject_Ville_alpha_{base}"] = df["Ville_e_val"] > thr
 
-        elif self.mt_variant == "split":
+        elif self.mt_variant == "PAC":
             for a in self.alphas:
                 thr = self.thresholds[a]
                 base = str(a).replace(".", "_")
-                col = f"reject_split_alpha_{base}"
-                df[col] = df["split_e_val"] > thr
+                df[f"reject_PAC_alpha_{base}"] = df["PAC_e_val"] > thr
 
-        else:  ## mt_variant == "both"
-            anytime_thr = self.thresholds["anytime"]
-            split_thr = self.thresholds["split"]
+        else:  ## RandVille: standard threshold 1/alpha on non-final steps, U/alpha on final step
+            max_step_by_pid = df.groupby(self.problem_col)[self.step_col].max().to_dict()
+            rng_rv = np.random.default_rng(self.random_state)
+            U_per_pid = {pid: rng_rv.uniform(0, 1) for pid in df[self.problem_col].unique()}
+
+            T_col = df[self.problem_col].map(max_step_by_pid)
+            U_col = df[self.problem_col].map(U_per_pid)
+            is_final = df[self.step_col] == T_col
 
             for a in self.alphas:
                 base = str(a).replace(".", "_")
-
-                thr_any = anytime_thr[a]
-                thr_split = split_thr[a]
-
-                col_any = f"reject_anytime_alpha_{base}"
-                col_split = f"reject_split_alpha_{base}"
-
-                df[col_any] = df["anytime_e_val"] > thr_any
-                df[col_split] = df["split_e_val"] > thr_split
+                thr = np.where(is_final, U_col / a, 1.0 / a)
+                df[f"reject_RandVille_alpha_{base}"] = df["Ville_e_val"] > thr
 
         return df
