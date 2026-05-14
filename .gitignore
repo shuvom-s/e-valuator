@@ -11,6 +11,8 @@ __pycache__/
 venv/
 env/
 
+sandbox/
+
 # Build artifacts
 build/
 dist/
@@ -25,6 +27,8 @@ dist/
 .vscode/
 .idea/
 *.swp
+export/
+export.zip
 
 # Distribution / packaging
 .Python
@@ -45,3 +49,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+src/evaluator/evaluator_sandbox.py
+CLAUDE.md
+CHANGES_PLAN.md
+TO_REVIEW.md
+baselines/results/
