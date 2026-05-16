@@ -9,6 +9,7 @@ from tqdm import tqdm
 import numpy as np
 import sys
 
+## TODO: Make demo notebook for chess with new evaluator
 HF_DATASET = "patrickfrank1/chess-pgn-games"  # full PGN games from lichess :contentReference[oaicite:2]{index=2}
 MAX_GAMES = 200       # change as desired (full dataset is huge)
 ENGINE_PATH = shutil.which("stockfish") or "/usr/local/bin/stockfish"
