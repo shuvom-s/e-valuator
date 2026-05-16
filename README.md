@@ -10,7 +10,9 @@
 
 Code for paper [_E-valuator: Reliable Agent Verifiers with Sequential Hypothesis Testing_](https://arxiv.org/abs/2512.03109). We build a sequential evaluator that can convert any black-box verifier/agent system into one with statistical guarantees. At deployment time, our system can flag and terminate agent trajectories that are likely to be unsuccessful without access to anything but a verifier's (black-box) scores.
 
-![E-valuator Explainer Figure](data/figs/fig1_evaluator.png)
+To learn more details about the method, please see the paper. There is also a [recorded talk](https://www.youtube.com/watch?v=Xxlhh019cWM) to the [Rational Intelligence Seminar](https://ri-lab.org/riss/) available on YouTube.
+
+![E-valuator Explainer Figure](data/figs/fig1_new.png)
 
 ## Install
 To start, please install our package:
@@ -20,9 +22,9 @@ pip install e-valuator
 ```
 
 ## Data
-E-valuator requires a dataframe with columns at least four columns: (1) uq_problem_idx, a unique identifier for each trajectory, (2) step_idx (or num_steps), indicating the step count of the trajectory thus far, (3) judge_probability, indicating the verifier score for that particular step (could also be real-valued, doesn't have to be in 0-1), and (4) solved, a binary indicator column indicating whether the agent successfully solved the problem or not. Details on the data are provided in quick start. Here's an example of a minimal dataframe for e-valuator:
+E-valuator requires a dataframe with at least four columns: (1) uq_problem_idx, a unique identifier for each trajectory, (2) num_steps, indicating the step count of the trajectory thus far, (3) judge_probability, indicating the verifier score for that particular step (could also be real-valued, doesn't have to be in 0-1), and (4) solved, a binary indicator column indicating whether the agent successfully solved the problem or not. Details on the data are provided in quick start. Here's an example of a minimal dataframe for e-valuator:
 
-| uq_problem_idx  | step_idx | judge_probability | solved |
+| uq_problem_idx  | num_steps| judge_probability | solved |
 | :---            | :---:    | :---:             | :---:  |
 | `algebra_1`     | 1        | 0.995             | 1      |
 | `algebra_1`     | 2        | 0.996             | 1      |
@@ -37,9 +39,9 @@ You are welcome to add other columns (e.g., metadata about the problem, token co
 ## Quick start
 You can quickly try out our demo code in Colab (click on the badge at the top of this README).
 
-We provide three demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_w_scores_compressed.csv.gz`), `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_w_scores_compressed.csv.gz`), and `demos/notebooks/chess_example.ipynb` (corresponding dataset in `data/chessgames_w_scores_compressed.csv.gz`). These notebooks provide examples of the input data format required and evaluation pipeline. In general, the workflow for e-valuator consists of three parts:
+We provide two demo notebooks (and corresponding datasets) in `demos/notebooks/hotpot_example.ipynb` (corresponding dataset in `data/hotpotqa_w_scores_compressed.csv.gz`) and `demos/notebooks/math_example_tokens.ipynb` (corresponding dataset in `data/math_w_scores_compressed.csv.gz`). These notebooks provide examples of the input data format required and evaluation pipeline. The workflow for e-valuator consists of three parts:
 
-1. **Collect agent trajectories and verifier scores**. We provide an example collection script in `demos/collect_verifier_scores/collect_math_example.py`. As noted in the data section, the trajectories and scores used to calibrate e-valuator must be stored in a csv file (or similar) with (at least) four columns: (1) uq_problem_idx, (2) step_idx, (3) judge_probability, and (4) solved. The columns need not use exactly these names, but if you use a different naming system, you'll need to mark them appropriately upon initialization of e-valuator.
+1. **Collect agent trajectories and verifier scores**. We provide an example collection script in `demos/collect_verifier_scores/collect_math_example.py`. As noted in the data section, the trajectories and scores used to calibrate e-valuator must be stored in a csv file (or similar) with (at least) four columns: (1) uq_problem_idx, (2) num_steps, (3) judge_probability, and (4) solved. The columns need not use exactly these names, but if you use a different naming system, you'll need to mark them appropriately upon initialization of e-valuator.
 
 2. **Fit density ratio estimates on calibration set**. Using the calibration set collected in step (1), we'll fit a stepwise density ratio estimator with a binary classifier.
 
@@ -51,18 +53,26 @@ To start e-valuator:
 import evaluator as e_val
 ev = e_val.EValuator(
     model_type="logistic",   
-    mt_variant="both",    ## "split" is finite time/empirical version of e-valuator. "anytime" is the anytime-valid version. "both" adds both the finite-time and empirical versions as columns to the test set.
-    alphas=[0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5], ## by default, alphas = [0.05] unless otherwise specified, as we do here
-    # delta=0.1, ## only used for split version, confidence level in false alarm guarantee. default is 0.1 (meaning 90% confidence in false alarm guarantee)
-    delta=0.05,
+    mt_variant="PAC",    ## "PAC" is the variant where we find the threshold empirically from null samples in the calibration set. "RandVille" uses Randomized Ville's inequality, which controls the false alarm rate, but only for exact density ratios.
+    alphas=[0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
+    ## Note: we split the PAC budget alpha as: alpha' = w0*alpha, delta' = w1*alpha using alpha_delta_weights=(w0, w1). Then, by a union bound, the total false alarm rate is controlled within alpha.
+    ## Default is (0.9, 0.1). To change, uncomment and change line below:
+    # alpha_delta_weights=(0.9, 0.1),
+    split_fraction=0.5 ## fraction of the calibration split used for learning density ratios vs setting threshold. by default, it's set to 0.5, or equal parts for each split. only used for e-valuator (i.e., PAC version). Not used for anything else.
 )
 ```
 
-You now have an e-valuator object that will fit the density ratio estimate using logistic regression. It will find valid thresholds for both the anytime-valid variant and empirical versions of e-valuator, using the list of $\alpha$ values provided. $\delta$ indicates the confidence in the false alarm guarantee. Specifically, $\delta=0.05$ indicates 95\% confidence in the guarantee (see Proposition 3 of the paper for details).
+You now have an e-valuator object that will fit the density ratio estimate using logistic regression. It will find a valid threshold for e-valuator, using the list of $\alpha$ values provided. Note that the total budget is $\alpha$, which we split into $\alpha'$ and $\delta$. It's possible there are too few calibration samples to find a valid threshold from the calibration set. This happens when there are too few successful trajectories in the calibration split, i.e., $n < \log \delta / \log(1-\alpha')$. In such a case, the threshold used is $c_\alpha = \text{np.inf}$, which corresponds to never rejecting a trajectory (thus trivially controlling the false alarm rate). E-valuator throws a warning when $n$ is too small (see [here](https://github.com/shuvom-s/e-valuator/blob/main/src/evaluator/evaluator.py#L240)). We thus recommend setting $\alpha', \delta$ such that $c_\alpha$ is finite. 
 
 You'll then need to fit e-valuator on a calibration dataframe that has the columns we described above:
 
 ```python
+from evaluator.utils import add_judge_probability_series
+## reformat the calibration dataframe
+cal_df  = add_judge_probability_series(cal_df)
+test_df = add_judge_probability_series(test_df)
+
+## fit
 ev.fit(cal_df)
 ```
 
@@ -73,24 +83,44 @@ test_df_with_evals = ev.apply(test_df)
 ```
 
 ## Online Evaluation/Monitoring of Agents
-_E-valuator_ assumes black-box access to the verifier/agent system. As such, we do note provide code to directly intervene in any particular agent/verifier system. To deploy _e-valuator_ online, we recommend updating the test_df after each agent action/verifier score:
+_E-valuator_ assumes black-box access to the verifier/agent system. As such, we do not provide code to directly intervene in any particular agent/verifier system. To deploy _e-valuator_ online, we recommend updating the test_df after each agent action/verifier score:
 
 ```python
-## assume ev.fit(cal_df) has been called before
-x = 0
-while agent_not_done:
-    ## pseudocode to get a verifier score and add to test df
-    verifier_score = verify(partial_traj_step_x)
-    test_df.loc[len(test_df)] = ['problem_new', verifier_score1, x]
-    test_df_scored = ev.apply(test_df)
+import pandas as pd
+from evaluator import EValuator
 
-    if test_df_scored['anytime_eval'] > 1/alpha:
-        terminate
-    else:
-        x += 1
+ev = EValuator(mt_variant="PAC", alphas=[0.05], split_fraction=0.5)
+ev.fit(cal_df)                       # fit e-valuator thresholds and density ratios on some calibration dataframe
+
+pid = "problem_new"
+alpha = 0.05
+reject_col = f"reject_PAC_alpha_{str(alpha).replace('.', '_')}"
+
+prefix = []                          # judge scores so far for this trajectory
+step = 1
+while agent_not_done: # until agent finishes (or gets terminated inside this loop)
+    score = verify(partial_traj_step)
+    prefix.append(score)
+
+    row = pd.DataFrame([{
+        "uq_problem_idx": pid,
+        "num_steps": step,
+        "judge_probability_series": list(prefix),
+    }])
+    scored = ev.apply(row)
+
+    if bool(scored.iloc[0][reject_col]):
+        terminate(); break
+    step += 1
 ```
-This is inefficient, and if there's interest, we can add better support for online evaluation/monitoring of agents with _e-valuator_.
 
+## Baselines
+We compare to several baselines, which are available in `baselines/run_baselines.py`. The baselines are:
+
+1. PAC verifier. For this baseline, we use PAC thresholding, but just on the raw scoredes.
+2. Randomized Ville. Uses a [randomized variant of Ville's inequality](https://arxiv.org/abs/2304.02611) to set the rejection threshold.
+3. Calibrated verifier. Runs a small calibration procedure atop the raw verifier, then rejects whenever the raw score drops below $\alpha$.
+4. Raw verifier. Same as above, without any calibration.
 
 ## Citation
 If you use this code, please cite our work:
@@ -104,6 +134,5 @@ If you use this code, please cite our work:
 }
 ```
 
-## Contact
+## Contact and miscellaneous
 Feel free to contact shuvom@csail.mit.edu with any questions.
-
