@@ -1,7 +1,7 @@
 
 
 # E-valuator
-[![License](https://img.shields.io/github/license/shuvom-s/e-valuator)](https://github.com/shuvom-s/e-valuator/blob/main/LICENSE)
+[![License](https://img.shields.io/pypi/l/e-valuator)](https://github.com/shuvom-s/e-valuator/blob/main/LICENSE)
 [![PyPI version](https://img.shields.io/pypi/v/e-valuator?color=blue)](https://pypi.org/project/e-valuator/)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/e-valuator?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/e-valuator)
 [![ArXiv](https://img.shields.io/badge/arXiv-2512.03109-b31b1b.svg)](https://arxiv.org/abs/2512.03109)
