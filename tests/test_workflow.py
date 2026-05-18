@@ -34,12 +34,18 @@ def test_invalid_alpha_raises():
         EValuator(alphas=[])
 
 
-def test_invalid_delta_raises():
+def test_invalid_alpha_delta_weights_raises():
     with pytest.raises(AssertionError):
-        EValuator(delta=0.0)   # must be in (0,1)
+        EValuator(alpha_delta_weights=(0.0, 0.1))   # both must be > 0
 
     with pytest.raises(AssertionError):
-        EValuator(delta=1.5)
+        EValuator(alpha_delta_weights=(0.9, -0.1))  # both must be > 0
+
+    with pytest.raises(AssertionError):
+        EValuator(alpha_delta_weights=(0.9, 0.2))   # sum must be <= 1
+
+    with pytest.raises(AssertionError):
+        EValuator(alpha_delta_weights=(0.5,))       # must be a pair
 
 
 def test_invalid_mt_variant_raises():
@@ -140,7 +146,6 @@ def test_evaluator_workflow_from_csv(mt_variant):
         model_type="logistic",
         mt_variant=mt_variant,
         alphas=[0.01, 0.05, 0.1],
-        delta=0.05,
     )
 
     # Fit on calibration set

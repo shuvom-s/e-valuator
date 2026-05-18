@@ -18,8 +18,15 @@ class EValuator:
             "PAC" uses a PAC tolerance-bound threshold calibrated on held-out data.
             "Ville" uses Ville's inequality with threshold 1/alpha.
             "RandVille" uses the randomized Ville inequality.
-        alphas: list of alpha levels (default [0.05])
-        delta: failure probability for the PAC threshold (default 0.1)
+        alphas: list of target marginal FAR budgets (default [0.05]). For PAC,
+            each target a is split internally as alpha' = w0*a, delta' = w1*a
+            using alpha_delta_weights; by the union bound the marginal FAR is
+            bounded by (w0 + w1) * a (= a when the weights sum to 1).
+            For Ville/RandVille, alpha is used directly.
+        alpha_delta_weights: pair (w0, w1) controlling the PAC budget split
+            of each target alpha into (alpha', delta'). Default (0.9, 0.1).
+            Must satisfy w0 > 0, w1 > 0, and w0 + w1 <= 1.
+            Only used when mt_variant="PAC".
         problem_col: column name for problem identifier (default "uq_problem_idx")
         step_col: column name for step index (default "num_steps")
         split_fraction: fraction of problems used for log-training in PAC mode
@@ -31,7 +38,7 @@ class EValuator:
         model_type: str = "logistic",
         mt_variant: str = "PAC",
         alphas=None,
-        delta: float = 0.1,
+        alpha_delta_weights=(0.9, 0.1),
         problem_col: str = "uq_problem_idx",
         step_col: str = "num_steps",
         split_fraction: float = 0.5,
@@ -40,7 +47,7 @@ class EValuator:
         self.model_type = model_type
         self.mt_variant = mt_variant
         self.alphas = alphas if alphas is not None else [0.05]
-        self.delta = delta
+        self.alpha_delta_weights = tuple(alpha_delta_weights)
         self.problem_col = problem_col
         self.step_col = step_col
         self.split_fraction = split_fraction
@@ -53,7 +60,17 @@ class EValuator:
         for a in self.alphas:
             assert 0 < a < 1, f"Alpha must be in (0,1). Got {a}"
 
-        assert 0 < self.delta < 1, f"Delta must be in (0,1). Got {self.delta}"
+        assert len(self.alpha_delta_weights) == 2, (
+            f"alpha_delta_weights must be a pair (w0, w1). Got {self.alpha_delta_weights}"
+        )
+        w0, w1 = self.alpha_delta_weights
+        assert w0 > 0 and w1 > 0, (
+            f"alpha_delta_weights must be strictly positive. Got {self.alpha_delta_weights}"
+        )
+        assert w0 + w1 <= 1.0 + 1e-12, (
+            f"alpha_delta_weights must sum to <= 1 (so marginal FAR <= alpha). "
+            f"Got {self.alpha_delta_weights} (sum={w0 + w1})"
+        )
         assert 0 < self.split_fraction < 1, f"split_fraction must be in (0,1). Got {self.split_fraction}"
         assert self.mt_variant in {"Ville", "PAC", "RandVille"}, (
             "mt_variant must be 'Ville', 'PAC', or 'RandVille'. "
@@ -93,7 +110,7 @@ class EValuator:
         Xs = np.sort(np.asarray(values))
         n = Xs.size
         if n == 0:
-            return 0.0
+            return float('inf')
 
         p = 1.0 - alpha
         sig = delta
@@ -158,6 +175,8 @@ class EValuator:
     def _compute_e_vals_for_variant(self, df: pd.DataFrame, which: str) -> np.ndarray:
         """
         Compute density ratios per row for the requested variant ("anytime" or "split").
+        Anytime: uses entire calibration set to train density ratios and later applies Ville or Randomized Ville threshold.
+        Split: uses half of calibration set to train density ratios and uses the other half to compute PAC thresholds.
         """
         if which == "anytime":
             models = self.step_models_anytime
@@ -228,26 +247,27 @@ class EValuator:
                 group_max.append(vals.max())
 
         n = len(group_max)
+        w0, w1 = self.alpha_delta_weights
         thresholds = {}
         for a in self.alphas:
-            if n == 0:
-                thresholds[a] = 0.0
-            else:
-                thr = self._upper_tolerance_bound(group_max, alpha=a, delta=self.delta)
-                if np.isinf(thr):
-                    min_n = int(np.ceil(np.log(self.delta) / np.log(1.0 - a)))
-                    warnings.warn(
-                        f"The calibration set has only n={n} successful trajectories, which is "
-                        f"too small for alpha={a}, delta={self.delta} with the PAC threshold. "
-                        f"The threshold is set to inf (no rejections; false alarm rate controlled "
-                        f"but zero power). To obtain a finite threshold, ensure n >= "
-                        f"ceil(log(delta) / log(1 - alpha)) = {min_n}, or increase the "
-                        f"calibration set size. "
-                        f"See https://arxiv.org/pdf/2512.03109 Appendix 8.1.2 for details.",
-                        UserWarning,
-                        stacklevel=3,
-                    )
-                thresholds[a] = thr
+            alpha_p, delta_p = w0 * a, w1 * a
+            thr = self._upper_tolerance_bound(group_max, alpha=alpha_p, delta=delta_p)
+            if np.isinf(thr):
+                # warning on insufficient calibration set size
+                min_n = int(np.ceil(np.log(delta_p) / np.log(1.0 - alpha_p)))
+                warnings.warn(
+                    f"The calibration set has only n={n} successful trajectories, which is "
+                    f"too small for the PAC threshold at target alpha={a} (split as "
+                    f"alpha'={alpha_p}, delta'={delta_p} via alpha_delta_weights={self.alpha_delta_weights}). "
+                    f"The threshold is set to inf (no rejections; false alarm rate controlled "
+                    f"but zero power). To obtain a finite threshold, ensure n >= "
+                    f"ceil(log(delta') / log(1 - alpha')) = {min_n}, or increase the "
+                    f"calibration set size. "
+                    f"See https://arxiv.org/pdf/2512.03109 Appendix 8.1.2 for details.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            thresholds[a] = thr
         return thresholds
 
     def fit(self, calib_df: pd.DataFrame):
